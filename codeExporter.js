@@ -11,8 +11,33 @@ const ignoreList = ['node_modules', '.git', '.gitignore', '.env', 'LICENSE', 'RE
 // Функция для записи содержимого файла в выходной файл
 function appendFileContent(sourcePath, outputFile) {
     const relativePath = path.relative(directoryPath, sourcePath); // Получаем относительный путь файла
-    const content = fs.readFileSync(sourcePath, 'utf8');
-    fs.appendFileSync(outputFile, `Файл: ${relativePath}\n${content}\n\n`, 'utf8');
+    let content = fs.readFileSync(sourcePath, 'utf8');
+    // Добавляем метку файла перед его содержимым
+    content = `Файл: ${relativePath}\n${content}\n\n`;
+    // Удаляем избыточные пустые строки
+    content = removeExtraEmptyLines(content);
+    fs.appendFileSync(outputFile, content, 'utf8');
+}
+
+// Функция для удаления избыточных пустых строк
+function removeExtraEmptyLines(content) {
+    const lines = content.split('\n');
+    let cleanedLines = [];
+    let emptyLineCount = 0;
+
+    lines.forEach(line => {
+        if (line.trim() === '') {
+            emptyLineCount++;
+            if (emptyLineCount <= 2) {
+                cleanedLines.push(line);
+            }
+        } else {
+            emptyLineCount = 0;
+            cleanedLines.push(line);
+        }
+    });
+
+    return cleanedLines.join('\n');
 }
 
 // Рекурсивная функция для обхода директории

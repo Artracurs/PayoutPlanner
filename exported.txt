@@ -32,7 +32,6 @@
   }
 }
 
-
 Файл: server/src/api/config/db.js
 const mongoose = require('mongoose');
 require('dotenv').config();
@@ -63,13 +62,12 @@ const register = async (req, res, next) => {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
 
-    const existingUsername = await User.findOne({ username: req.body.username });
+    const existingUsername = await User.findOne({ username });
     if (existingUsername) {
       return res.status(400).json({ message: 'Username already exists. Please choose a different one.' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, email, password: hashedPassword });
+    const user = new User({ username, email, password });
     await user.save();
     res.json({ message: 'Registration successful' });
   } catch (error) {
@@ -80,14 +78,6 @@ const register = async (req, res, next) => {
 // Login with an existing user
 const login = async (req, res, next) => {
   const { username, password } = req.body;
-  const passwort = "lan";
-  const saltRounds = 10;
-
-  bcrypt.hash(passwort, saltRounds, function(err, hash) {
-    console.log(hash);
-    // Сравните этот хэш с тем, что в базе данных
-  });
-
 
   try {
     const user = await User.findOne({ username });
@@ -96,8 +86,6 @@ const login = async (req, res, next) => {
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
-
-    console.log(password, user.password, passwordMatch);
 
     if (!passwordMatch) {
       return res.status(401).json({ message: 'Incorrect password' });
@@ -112,18 +100,7 @@ const login = async (req, res, next) => {
   }
 };
 
-async function testBcrypt(password) {
-  const saltRounds = 10;
-  const hash = await bcrypt.hash(password, saltRounds);
-  console.log(`Hash: ${hash}`);
-  const match = await bcrypt.compare(password, hash);
-  console.log(`Match: ${match}`);
-}
-
-testBcrypt('lan');
-
 module.exports = { register, login };
-
 
 Файл: server/src/api/middlewares/auth.js
 const jwt = require('jsonwebtoken');
@@ -152,6 +129,21 @@ const authenticate = async (req, res, next) => {
 
 module.exports = { authenticate };
 
+Файл: server/src/api/middlewares/roleCheck.js
+const roleCheck = (roles) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(403).json({ message: "User not authenticated" });
+  }
+
+  if (!roles.includes(req.user.role)) {
+    return res.status(403).json({ message: "Insufficient permissions" });
+  }
+
+  next();
+};
+
+module.exports = { roleCheck };
+
 Файл: server/src/api/routes/auth.js
 const express = require('express');
 const { register, login } = require('../controllers/auth');
@@ -166,11 +158,17 @@ module.exports = router;
 Файл: server/src/api/routes/user.js
 const express = require('express');
 const { authenticate } = require('../middlewares/auth');
+const { roleCheck } = require('../middlewares/roleCheck');
 
 const router = express.Router();
 
+// route only for admins
+router.get('/manage-users', authenticate, roleCheck(['admin']), (req, res) => {
+  res.json({ message: "User management interface" });
+});
+
 router.get('/profile', authenticate, (req, res) => {
-  res.json({ message: `Welcome ${req.user.username}` });
+  res.json({ message: `Welcome ${req.user.username}`, role: req.user.role });
 });
 
 module.exports = router;
@@ -183,7 +181,6 @@ const userController = require('../controllers/userController');
 router.get('/', userController.getUsers);
 
 module.exports = router;
-
 
 Файл: server/src/models/Employee.js
 const mongoose = require('mongoose');
@@ -220,7 +217,6 @@ const employeeSchema = new Schema({
 const Employee = mongoose.model('Employee', employeeSchema);
 
 module.exports = Employee;
-
 
 Файл: server/src/models/Orders.js
 const mongoose = require('mongoose');
@@ -259,7 +255,6 @@ const orderSchema = new Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 module.exports = Order;
-
 
 Файл: server/src/models/User.js
 const mongoose = require('mongoose');
@@ -336,9 +331,5 @@ app.listen(PORT, () => {
   console.log(`Server has been started on http://${HOST}:${PORT}`);
 })
 
-
-
-
 Файл: server/src/utils/auth.js
-
 
