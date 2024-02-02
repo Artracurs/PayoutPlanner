@@ -102,6 +102,20 @@ const login = async (req, res, next) => {
 
 module.exports = { register, login };
 
+Файл: server/src/api/controllers/userController.js
+const User = require('../../models/User'); 
+
+// Get all users func
+exports.getUsers = async (req, res) => {
+  try {
+    const users = await User.find().select('-password'); // include passwords from res
+    res.json(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 Файл: server/src/api/middlewares/auth.js
 const jwt = require('jsonwebtoken');
 const User = require('../../models/User');
@@ -157,10 +171,15 @@ module.exports = router;
 
 Файл: server/src/api/routes/user.js
 const express = require('express');
-const { authenticate } = require('../middlewares/auth');
-const { roleCheck } = require('../middlewares/roleCheck');
+const { getUsers } = require('../controllers/userController'); 
+const { authenticate, roleCheck } = require('../middlewares/auth');
+
 
 const router = express.Router();
+
+// Get All Users
+router.get('/', authenticate, roleCheck(['admin']), getUsers);
+
 
 // route only for admins
 router.get('/manage-users', authenticate, roleCheck(['admin']), (req, res) => {
@@ -174,13 +193,15 @@ router.get('/profile', authenticate, (req, res) => {
 module.exports = router;
 
 Файл: server/src/api/routes/userRoutes.js
-const express = require('express');
-const router = express.Router();
-const userController = require('../controllers/userController');
+// const express = require('express');
+// const router = express.Router();
+// const { getUsers } = require('../controllers/userController');
+// const { authenticate, roleCheck } = require('../middlewares/auth');
 
-router.get('/', userController.getUsers);
 
-module.exports = router;
+// router.get('/', authenticate, roleCheck(['admin']), getUsers);
+
+// module.exports = router;
 
 Файл: server/src/models/Employee.js
 const mongoose = require('mongoose');
@@ -315,6 +336,7 @@ const connectDB = require('./api/config/db');
 const authRoutes = require('./api/routes/auth');
 const userRoutes = require('./api/routes/user');
 
+
 const HOST = process.env.HOST;
 const PORT = process.env.PORT || 4000;
 
@@ -325,7 +347,6 @@ app.use(express.json());
 
 app.use('/auth', authRoutes);
 app.use('/user', userRoutes);
-
 
 app.listen(PORT, () => {
   console.log(`Server has been started on http://${HOST}:${PORT}`);
