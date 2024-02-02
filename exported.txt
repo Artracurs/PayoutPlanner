@@ -1,0 +1,344 @@
+Файл: server/package.json
+{
+  "name": "payout_planner",
+  "version": "1.0.0",
+  "description": "Payroll Planning and Management Solution",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Artracurs/PayoutPlanner.git"
+  },
+  "keywords": [
+    "payout",
+    "planner"
+  ],
+  "author": "lanneq / Ruslan Nurgaleev",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Artracurs/PayoutPlanner/issues"
+  },
+  "homepage": "https://github.com/Artracurs/PayoutPlanner#readme",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.1.1"
+  }
+}
+
+
+Файл: server/src/api/config/db.js
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URL);
+    console.log('Connected to MongoDB');
+  } catch (error) {
+    console.log('Error connecting to MongoDB:', error);
+  }
+};
+
+module.exports = connectDB;
+
+Файл: server/src/api/controllers/auth.js
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const User = require('../../models/User');
+
+// Register a new user
+const register = async (req, res, next) => {
+  const { username, email, password } = req.body;
+
+  try {
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
+    const existingUsername = await User.findOne({ username: req.body.username });
+    if (existingUsername) {
+      return res.status(400).json({ message: 'Username already exists. Please choose a different one.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ username, email, password: hashedPassword });
+    await user.save();
+    res.json({ message: 'Registration successful' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Login with an existing user
+const login = async (req, res, next) => {
+  const { username, password } = req.body;
+  const passwort = "lan";
+  const saltRounds = 10;
+
+  bcrypt.hash(passwort, saltRounds, function(err, hash) {
+    console.log(hash);
+    // Сравните этот хэш с тем, что в базе данных
+  });
+
+
+  try {
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    console.log(password, user.password, passwordMatch);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ message: 'Incorrect password' });
+    }
+
+    const token = jwt.sign({ userId: user._id }, process.env.SECRET_KEY, {
+      expiresIn: '1 hour'
+    });
+    res.json({ token });
+  } catch (error) {
+    next(error);
+  }
+};
+
+async function testBcrypt(password) {
+  const saltRounds = 10;
+  const hash = await bcrypt.hash(password, saltRounds);
+  console.log(`Hash: ${hash}`);
+  const match = await bcrypt.compare(password, hash);
+  console.log(`Match: ${match}`);
+}
+
+testBcrypt('lan');
+
+module.exports = { register, login };
+
+
+Файл: server/src/api/middlewares/auth.js
+const jwt = require('jsonwebtoken');
+const User = require('../../models/User');
+
+const authenticate = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  try {
+    const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+    const user = await User.findById(decodedToken.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+module.exports = { authenticate };
+
+Файл: server/src/api/routes/auth.js
+const express = require('express');
+const { register, login } = require('../controllers/auth');
+
+const router = express.Router();
+
+router.post('/register', register);
+router.post('/login', login);
+
+module.exports = router;
+
+Файл: server/src/api/routes/user.js
+const express = require('express');
+const { authenticate } = require('../middlewares/auth');
+
+const router = express.Router();
+
+router.get('/profile', authenticate, (req, res) => {
+  res.json({ message: `Welcome ${req.user.username}` });
+});
+
+module.exports = router;
+
+Файл: server/src/api/routes/userRoutes.js
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/userController');
+
+router.get('/', userController.getUsers);
+
+module.exports = router;
+
+
+Файл: server/src/models/Employee.js
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+
+const employeeSchema = new Schema({
+    registrationDate: {
+        type: Date,
+        default: Date.now
+    },
+    birthDate: Date,
+    employmentDate: Date,
+    position: {
+        type: String,
+        enum: ['мастер', 'помощник', 'руководитель', 'замерщик', 'сборщик', 'дизайнер'],
+        required: true
+    },
+    terminationDate: Date,
+    isInArchive: {
+        type: Boolean,
+        default: false
+    },
+    avatar: String, // Можете хранить URL к изображению
+    currentOrder: {
+        type: Schema.Types.ObjectId,
+        ref: 'Order' // Название модели заказа
+    },
+    debts: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Debt' // Название модели долга
+    }]
+});
+
+const Employee = mongoose.model('Employee', employeeSchema);
+
+module.exports = Employee;
+
+
+Файл: server/src/models/Orders.js
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+
+const orderSchema = new Schema({
+    orderDate: {
+        type: Date,
+        default: Date.now
+    },
+    dueDate: Date, // Дата, к которой заказ должен быть выполнен
+    customerDetails: {
+        name: String,
+        contactInfo: String, // Может включать телефон, email и т.д.
+        address: String
+    },
+    orderStatus: {
+        type: String,
+        enum: ['обработка', 'выполнение', 'завершен', 'отменен'],
+        default: 'обработка'
+    },
+    items: [{
+        itemDescription: String,
+        quantity: Number,
+        price: Number
+        // Можно добавить другие поля, связанные с товаром/услугой
+    }],
+    totalCost: Number, // Общая стоимость заказа
+    assignedEmployees: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Employee' // Связь с моделью сотрудника
+    }],
+    notes: String // Примечания к заказу
+});
+
+const Order = mongoose.model('Order', orderSchema);
+
+module.exports = Order;
+
+
+Файл: server/src/models/User.js
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    password: {
+      type: String,
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user'
+    }
+  },
+  { timestamps: true }
+);
+
+// Hash the password before saving it to the database
+userSchema.pre('save', async function (next) {
+  const user = this;
+  if (!user.isModified('password')) return next();
+
+  try {
+    const salt = await bcrypt.genSalt();
+    user.password = await bcrypt.hash(user.password, salt);
+    next();
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Compare the given password with the hashed password in the database
+userSchema.methods.comparePassword = async function (password) {
+  return bcrypt.compare(password, this.password);
+};
+
+const User = mongoose.model('User', userSchema);
+
+module.exports = User;
+
+Файл: server/src/server.js
+const express = require('express');
+const connectDB = require('./api/config/db');
+
+const authRoutes = require('./api/routes/auth');
+const userRoutes = require('./api/routes/user');
+
+const HOST = process.env.HOST;
+const PORT = process.env.PORT || 4000;
+
+connectDB();
+
+const app = express();
+app.use(express.json());
+
+app.use('/auth', authRoutes);
+app.use('/user', userRoutes);
+
+
+app.listen(PORT, () => {
+  console.log(`Server has been started on http://${HOST}:${PORT}`);
+})
+
+
+
+
+Файл: server/src/utils/auth.js
+
+
