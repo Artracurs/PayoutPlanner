@@ -144,6 +144,8 @@ const authenticate = async (req, res, next) => {
 module.exports = { authenticate };
 
 Файл: server/src/api/middlewares/roleCheck.js
+const { authenticate } = require('./auth'); 
+
 const roleCheck = (roles) => (req, res, next) => {
   if (!req.user) {
     return res.status(403).json({ message: "User not authenticated" });
@@ -171,17 +173,16 @@ module.exports = router;
 
 Файл: server/src/api/routes/user.js
 const express = require('express');
+const { authenticate } = require('../middlewares/auth');
+const { roleCheck } = require('../middlewares/roleCheck');
 const { getUsers } = require('../controllers/userController'); 
-const { authenticate, roleCheck } = require('../middlewares/auth');
-
 
 const router = express.Router();
 
 // Get All Users
 router.get('/', authenticate, roleCheck(['admin']), getUsers);
 
-
-// route only for admins
+// Route only for admins
 router.get('/manage-users', authenticate, roleCheck(['admin']), (req, res) => {
   res.json({ message: "User management interface" });
 });
@@ -191,17 +192,6 @@ router.get('/profile', authenticate, (req, res) => {
 });
 
 module.exports = router;
-
-Файл: server/src/api/routes/userRoutes.js
-// const express = require('express');
-// const router = express.Router();
-// const { getUsers } = require('../controllers/userController');
-// const { authenticate, roleCheck } = require('../middlewares/auth');
-
-
-// router.get('/', authenticate, roleCheck(['admin']), getUsers);
-
-// module.exports = router;
 
 Файл: server/src/models/Employee.js
 const mongoose = require('mongoose');
@@ -281,33 +271,68 @@ module.exports = Order;
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
-const userSchema = new mongoose.Schema(
-  {
-    username: {
-      type: String,
-      required: true,
-      unique: true
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true
-    },
-    password: {
-      type: String,
-      required: true
-    },
-    role: {
-      type: String,
-      enum: ['user', 'admin'],
-      default: 'user'
-    }
+const userSchema = new mongoose.Schema({
+  username: {
+    type: String,
+    required: true,
+    unique: true
   },
-  { timestamps: true }
-);
+  firstName: {
+    type: String,
+    required: true
+  },
+  lastName: {
+    type: String,
+    required: false
+  },
+  phoneNumber: {
+    type: String,
+    required: false
+  },
+  position: {
+    type: String,
+    enum: ['master', 'assistant', 'manager', 'measurer', 'assembler', 'designer'],
+    required: false
+  },
+  status: {
+    type: String,
+    enum: ['employed', 'terminated'],
+    required: false
+  },
+  avatar: {
+    type: String,
+    required: false
+  },
+  onVacation: {
+    type: Boolean,
+    required: false
+  },
+  birthDate: {
+    type: Date,
+    required: false
+  },
+  employmentDate: {
+    type: Date,
+    required: false
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  }
+}, { timestamps: true });
 
 // Hash the password before saving it to the database
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function(next) {
   const user = this;
   if (!user.isModified('password')) return next();
 
@@ -321,7 +346,7 @@ userSchema.pre('save', async function (next) {
 });
 
 // Compare the given password with the hashed password in the database
-userSchema.methods.comparePassword = async function (password) {
+userSchema.methods.comparePassword = async function(password) {
   return bcrypt.compare(password, this.password);
 };
 

@@ -26,7 +26,7 @@ const orderSchema = new Schema({
     totalCost: Number, // Общая стоимость заказа
     assignedEmployees: [{
         type: Schema.Types.ObjectId,
-        ref: 'Employee' // Связь с моделью сотрудника
+        ref: 'User' // Связь с моделью сотрудника
     }],
     notes: String // Примечания к заказу
 });
