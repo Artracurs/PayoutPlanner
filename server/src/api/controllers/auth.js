@@ -5,12 +5,15 @@ const User = require('../../models/User');
 // Register a new user
 const register = async (req, res, next) => {
   const { username, email, password } = req.body;
-  // console.log(username, email, password);
 
   try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ username, email, password: hashedPassword });
-    // console.log(hashedPassword);
     await user.save();
     res.json({ message: 'Registration successful' });
   } catch (error) {
@@ -28,7 +31,8 @@ const login = async (req, res, next) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const passwordMatch = await user.comparePassword(password);
+    const passwordMatch = bcrypt.compare(password, user.password);
+
     if (!passwordMatch) {
       return res.status(401).json({ message: 'Incorrect password' });
     }
